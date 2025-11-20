@@ -1,3 +1,4 @@
+# app.py - Streamlit App
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,24 +10,28 @@ st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
 st.title("🎯 Customer Churn Prediction App")
 st.write("Predict whether a customer is likely to churn based on their information")
 
-# Load model and feature columns
+# Load model and preprocessor
 @st.cache_resource
-def load_model_and_features():
+def load_model_and_preprocessor():
     try:
         model = joblib.load('model.pkl')
-        feature_columns = joblib.load('feature_columns.pkl')
-        return model, feature_columns
+        preprocessor = joblib.load('preprocessor.pkl')
+        feature_names = joblib.load('feature_names.pkl')
+        return model, preprocessor, feature_names
+    except FileNotFoundError as e:
+        st.error(f"File not found: {str(e)}")
+        st.error("Make sure you have model.pkl, preprocessor.pkl, and feature_names.pkl in your repository")
+        st.stop()
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
         st.stop()
 
-model, feature_columns = load_model_and_features()
-st.success(f"✅ Model loaded successfully! Expecting {len(feature_columns)} features")
+model, preprocessor, feature_names = load_model_and_preprocessor()
+st.success(f"✅ Model loaded successfully! Using {len(feature_names)} features")
 
-# Create input fields for ALL original features
+# Create input fields for customer features
 st.header("Enter Customer Information")
 
-# Group inputs logically
 col1, col2 = st.columns(2)
 
 with col1:
@@ -63,10 +68,10 @@ with col2:
 # Prediction button
 if st.button('🔍 Predict Churn Risk'):
     try:
-        # Create a DataFrame with the input data
+        # Create input DataFrame
         input_data = pd.DataFrame({
             'gender': [gender],
-            'SeniorCitizen': [1 if senior_citizen == 'Yes' else 0],
+            'SeniorCitizen': [senior_citizen],
             'Partner': [partner],
             'Dependents': [dependents],
             'tenure': [tenure],
@@ -86,32 +91,12 @@ if st.button('🔍 Predict Churn Risk'):
             'TotalCharges': [total_charges]
         })
         
-        # Apply the same preprocessing that was used during training
-        # This is a simplified example - adjust based on your actual preprocessing
-        
-        # One-hot encode categorical variables (must match training)
-        categorical_columns = ['gender', 'Partner', 'Dependents', 'PhoneService', 'MultipleLines', 
-                              'InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
-                              'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract', 
-                              'PaperlessBilling', 'PaymentMethod']
-        
-        # Create one-hot encoded features
-        encoded_data = pd.get_dummies(input_data, columns=categorical_columns)
-        
-        # Ensure all expected columns exist (fill missing with 0)
-        for col in feature_columns:
-            if col not in encoded_data.columns:
-                encoded_data[col] = 0
-        
-        # Select only the columns in the same order as training
-        encoded_data = encoded_data[feature_columns]
-        
-        # Verify the shape
-        st.write(f"Input shape: {encoded_data.shape}")
+        # Apply the same preprocessing used during training
+        input_processed = preprocessor.transform(input_data)
         
         # Make prediction
-        prediction = model.predict(encoded_data)[0]
-        probability = model.predict_proba(encoded_data)[0]
+        prediction = model.predict(input_processed)[0]
+        probability = model.predict_proba(input_processed)[0]
         
         # Display results
         st.subheader("Prediction Results:")
@@ -125,6 +110,10 @@ if st.button('🔍 Predict Churn Risk'):
             st.write(f"Stay Probability: {probability[0]:.2%}")
             st.write(f"Churn Probability: {probability[1]:.2%}")
             
+        # Show feature values
+        st.subheader("Input Summary:")
+        st.write(input_data.T)
+        
     except Exception as e:
         st.error(f"Error in prediction: {str(e)}")
         st.write("Please check your input values and try again.")
@@ -132,4 +121,10 @@ if st.button('🔍 Predict Churn Risk'):
 # Add information about the model
 st.sidebar.header("About This App")
 st.sidebar.info("This app predicts customer churn using machine learning.")
-st.sidebar.write(f"Model expects {len(feature_columns)} features after preprocessing.")
+st.sidebar.write(f"Model trained on telecom customer data.")
+st.sidebar.write(f"Uses {len(feature_names)} features for prediction.")
+
+# Model information
+st.sidebar.header("Model Info")
+st.sidebar.write(f"Algorithm: {type(model).__name__}")
+st.sidebar.write(f"Features used: {len(feature_names)}")

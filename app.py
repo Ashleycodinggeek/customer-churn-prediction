@@ -1,74 +1,51 @@
-# app.py - Streamlit App
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 
-# Set page config
 st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
-
 st.title("🎯 Customer Churn Prediction App")
-st.write("Predict whether a customer is likely to churn based on their information")
 
 # Load model and preprocessor
 @st.cache_resource
-def load_model_and_preprocessor():
-    try:
-        model = joblib.load('model.pkl')
-        preprocessor = joblib.load('preprocessor.pkl')
-        feature_names = joblib.load('feature_names.pkl')
-        return model, preprocessor, feature_names
-    except FileNotFoundError as e:
-        st.error(f"File not found: {str(e)}")
-        st.error("Make sure you have model.pkl, preprocessor.pkl, and feature_names.pkl in your repository")
-        st.stop()
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        st.stop()
+def load_model():
+    model = joblib.load('model.pkl')
+    preprocessor = joblib.load('preprocessor.pkl')
+    return model, preprocessor
 
-model, preprocessor, feature_names = load_model_and_preprocessor()
-st.success(f"✅ Model loaded successfully! Using {len(feature_names)} features")
+try:
+    model, preprocessor = load_model()
+    st.success("✅ Model loaded successfully!")
+except Exception as e:
+    st.error(f"Error loading model: {str(e)}")
+    st.stop()
 
-# Create input fields for customer features
-st.header("Enter Customer Information")
-
+# Input fields (use your original ones)
 col1, col2 = st.columns(2)
 
 with col1:
-    # Demographics
     gender = st.selectbox('Gender', ['Male', 'Female'])
     senior_citizen = st.selectbox('Senior Citizen', ['No', 'Yes'])
     partner = st.selectbox('Partner', ['Yes', 'No'])
     dependents = st.selectbox('Dependents', ['Yes', 'No'])
-    
-    # Account Info
     tenure = st.number_input('Tenure (months)', min_value=0, max_value=100, value=12)
     contract = st.selectbox('Contract', ['Month-to-month', 'One year', 'Two year'])
+
+with col2:
+    phone_service = st.selectbox('Phone Service', ['Yes', 'No'])
+    internet_service = st.selectbox('Internet Service', ['DSL', 'Fiber optic', 'No'])
+    online_security = st.selectbox('Online Security', ['Yes', 'No', 'No internet service'])
     paperless_billing = st.selectbox('Paperless Billing', ['Yes', 'No'])
     payment_method = st.selectbox('Payment Method', [
         'Electronic check', 'Mailed check', 'Bank transfer (automatic)', 'Credit card (automatic)'
     ])
-
-with col2:
-    # Services
-    phone_service = st.selectbox('Phone Service', ['Yes', 'No'])
-    multiple_lines = st.selectbox('Multiple Lines', ['Yes', 'No', 'No phone service'])
-    internet_service = st.selectbox('Internet Service', ['DSL', 'Fiber optic', 'No'])
-    online_security = st.selectbox('Online Security', ['Yes', 'No', 'No internet service'])
-    online_backup = st.selectbox('Online Backup', ['Yes', 'No', 'No internet service'])
-    device_protection = st.selectbox('Device Protection', ['Yes', 'No', 'No internet service'])
-    tech_support = st.selectbox('Tech Support', ['Yes', 'No', 'No internet service'])
-    streaming_tv = st.selectbox('Streaming TV', ['Yes', 'No', 'No internet service'])
-    streaming_movies = st.selectbox('Streaming Movies', ['Yes', 'No', 'No internet service'])
-    
-    # Charges
     monthly_charges = st.number_input('Monthly Charges ($)', min_value=0.0, value=50.0)
     total_charges = st.number_input('Total Charges ($)', min_value=0.0, value=600.0)
 
-# Prediction button
+# Prediction
 if st.button('🔍 Predict Churn Risk'):
     try:
-        # Create input DataFrame
+        # Create input DataFrame matching training format
         input_data = pd.DataFrame({
             'gender': [gender],
             'SeniorCitizen': [senior_citizen],
@@ -76,31 +53,24 @@ if st.button('🔍 Predict Churn Risk'):
             'Dependents': [dependents],
             'tenure': [tenure],
             'PhoneService': [phone_service],
-            'MultipleLines': [multiple_lines],
             'InternetService': [internet_service],
             'OnlineSecurity': [online_security],
-            'OnlineBackup': [online_backup],
-            'DeviceProtection': [device_protection],
-            'TechSupport': [tech_support],
-            'StreamingTV': [streaming_tv],
-            'StreamingMovies': [streaming_movies],
             'Contract': [contract],
             'PaperlessBilling': [paperless_billing],
             'PaymentMethod': [payment_method],
             'MonthlyCharges': [monthly_charges],
             'TotalCharges': [total_charges]
         })
-        
-        # Apply the same preprocessing used during training
+
+        # Apply same preprocessing as training
         input_processed = preprocessor.transform(input_data)
         
         # Make prediction
         prediction = model.predict(input_processed)[0]
         probability = model.predict_proba(input_processed)[0]
-        
+
         # Display results
         st.subheader("Prediction Results:")
-        
         if prediction == 1:
             st.error(f"⚠️ HIGH RISK: Customer is likely to churn")
             st.write(f"Churn Probability: {probability[1]:.2%}")
@@ -109,22 +79,6 @@ if st.button('🔍 Predict Churn Risk'):
             st.success(f"✅ LOW RISK: Customer is likely to stay")
             st.write(f"Stay Probability: {probability[0]:.2%}")
             st.write(f"Churn Probability: {probability[1]:.2%}")
-            
-        # Show feature values
-        st.subheader("Input Summary:")
-        st.write(input_data.T)
-        
+
     except Exception as e:
         st.error(f"Error in prediction: {str(e)}")
-        st.write("Please check your input values and try again.")
-
-# Add information about the model
-st.sidebar.header("About This App")
-st.sidebar.info("This app predicts customer churn using machine learning.")
-st.sidebar.write(f"Model trained on telecom customer data.")
-st.sidebar.write(f"Uses {len(feature_names)} features for prediction.")
-
-# Model information
-st.sidebar.header("Model Info")
-st.sidebar.write(f"Algorithm: {type(model).__name__}")
-st.sidebar.write(f"Features used: {len(feature_names)}")
